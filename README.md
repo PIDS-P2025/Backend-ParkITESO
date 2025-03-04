@@ -23,11 +23,11 @@ docker build -t backend-parkiteso .
 Para correr la aplicación en un contenedor de Docker, usa:
 
 ```sh
-docker run -d -p 8080:8080 --name backend-parkiteso backend-parkiteso
+docker run -d -p 3000:3000 --name backend-parkiteso backend-parkiteso
 ```
 
 - `-d`: Ejecuta el contenedor en segundo plano.
-- `-p 8080:8080`: Mapea el puerto 8080 del contenedor al 8080 de la máquina host.
+- `-p 3000:3000`: Mapea el puerto 8080 del contenedor al 8080 de la máquina host.
 - `--name backend-parkiteso`: Asigna un nombre al contenedor.
 
 ---
