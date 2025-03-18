@@ -1,5 +1,4 @@
 name: API Tests
-
 on:
   push:
     branches:
@@ -7,7 +6,6 @@ on:
   pull_request:
     branches:
       - main
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,31 +19,78 @@ jobs:
         with:
           node-version: 18
           
-      # Install dependencies for each microservice
+      # Create package-lock.json files first
+      - name: 📄 Create package-lock files
+        run: |
+          cd parking_zones && npm install --package-lock-only
+          cd ../OAuth && npm install --package-lock-only
+          cd ../userProfile && npm install --package-lock-only
+          cd ../userLocation && npm install --package-lock-only
+          cd ../ && npm install --package-lock-only
+          
+      # Now install dependencies with clean install
       - name: 📥 Install dependencies for parking_zones
-        run: cd parking_zones && npm ci || npm install
+        run: cd parking_zones && npm install
         
       - name: 📥 Install dependencies for OAuth
-        run: cd OAuth && npm ci || npm install
+        run: cd OAuth && npm install
         
       - name: 📥 Install dependencies for userProfile
-        run: cd userProfile && npm ci || npm install
+        run: cd userProfile && npm install
         
       - name: 📥 Install dependencies for userLocation
-        run: cd userLocation && npm ci || npm install
+        run: cd userLocation && npm install
         
       # Install dependencies for the test project (ParkIteso)
       - name: 📥 Install dependencies for tests
-        run: npm ci || npm install
+        run: npm install
         
-      # Start your APIs (if needed for integration tests)
+      # Start your APIs with proper error handling
       - name: 🚀 Start the API Servers
         run: |
-          cd parking_zones && npm start &
-          cd ../OAuth && npm start &
-          cd ../userProfile && npm start &
-          cd ../userLocation && npm start &
-          sleep 10 # wait for APIs to start
+          cd parking_zones
+          npm start &
+          PARKING_PID=$!
+          cd ../OAuth
+          npm start &
+          OAUTH_PID=$!
+          cd ../userProfile
+          npm start &
+          PROFILE_PID=$!
+          cd ../userLocation
+          npm start &
+          LOCATION_PID=$!
+          cd ..
+          
+          # Wait for servers to start
+          echo "Waiting for servers to start..."
+          sleep 15
+          
+          # Check if processes are running
+          if ps -p $PARKING_PID > /dev/null; then
+            echo "Parking zones server running"
+          else
+            echo "Parking zones server failed to start"
+            exit 1
+          fi
+          if ps -p $OAUTH_PID > /dev/null; then
+            echo "OAuth server running"
+          else
+            echo "OAuth server failed to start"
+            exit 1
+          fi
+          if ps -p $PROFILE_PID > /dev/null; then
+            echo "User profile server running"
+          else
+            echo "User profile server failed to start"
+            exit 1
+          fi
+          if ps -p $LOCATION_PID > /dev/null; then
+            echo "User location server running"
+          else
+            echo "User location server failed to start"
+            exit 1
+          fi
         env:
           DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
           DATABASE_USER: admin
