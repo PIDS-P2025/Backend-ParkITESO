@@ -34,9 +34,18 @@ jobs:
       - name: 📥 Install dependencies for userLocation
         run: cd userLocation && npm ci || npm install
         
-      # Run tests for each microservice
-      - name: 🧪 Run API Tests for parking_zones
-        run: cd parking_zones && npm test
+      # Install dependencies for the test project (ParkIteso)
+      - name: 📥 Install dependencies for tests
+        run: npm ci || npm install
+        
+      # Start your APIs (if needed for integration tests)
+      - name: 🚀 Start the API Servers
+        run: |
+          cd parking_zones && npm start &
+          cd ../OAuth && npm start &
+          cd ../userProfile && npm start &
+          cd ../userLocation && npm start &
+          sleep 10 # wait for APIs to start
         env:
           DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
           DATABASE_USER: admin
@@ -45,28 +54,9 @@ jobs:
           DATABASE_PORT: 3306
           NODE_ENV: test
         
-      - name: 🧪 Run API Tests for OAuth
-        run: cd OAuth && npm test
-        env:
-          DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
-          DATABASE_USER: admin
-          DATABASE_PASSWORD: admin123
-          DATABASE_NAME: parkiteso
-          DATABASE_PORT: 3306
-          NODE_ENV: test
-        
-      - name: 🧪 Run API Tests for userProfile
-        run: cd userProfile && npm test
-        env:
-          DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
-          DATABASE_USER: admin
-          DATABASE_PASSWORD: admin123
-          DATABASE_NAME: parkiteso
-          DATABASE_PORT: 3306
-          NODE_ENV: test
-        
-      - name: 🧪 Run API Tests for userLocation
-        run: cd userLocation && npm test
+      # Run CodeceptJS tests
+      - name: 🧪 Run API Tests
+        run: npx codeceptjs run --steps
         env:
           DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
           DATABASE_USER: admin
