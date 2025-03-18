@@ -1,3 +1,13 @@
+name: API Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -6,10 +16,10 @@ jobs:
       mysql:
         image: mysql:latest
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpassword
+          MYSQL_ROOT_PASSWORD: admin123
+          MYSQL_DATABASE: parkiteso
+          MYSQL_USER: admin
+          MYSQL_PASSWORD: admin123
         ports:
           - 3306:3306
         options: >-
@@ -48,11 +58,18 @@ jobs:
             fi
           done
         env:
-          DATABASE_URL: mysql://testuser:testpassword@localhost:3306/testdb
+          DATABASE_URL: mysql://admin:admin123@db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com:3306/parkiteso
           NODE_ENV: test
 
       - name: ⏳ Wait for APIs to be ready
         run: sleep 10
 
       - name: 🧪 Run API Tests
-        run: npm test
+        run: |
+          for service in Example OAuth parking_zones userLocation userProfile; do
+            if [ -d "$service/test" ]; then
+              cd $service
+              npm test
+              cd ..
+            fi
+          done
