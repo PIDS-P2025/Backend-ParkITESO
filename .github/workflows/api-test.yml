@@ -1,0 +1,54 @@
+name: API Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:latest
+        env:
+          MYSQL_ROOT_PASSWORD: admin123
+          MYSQL_DATABASE: parkiteso
+          MYSQL_USER: admin
+          MYSQL_PASSWORD: admin123
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 🛎️ Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 📦 Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm install
+
+      - name: 🚀 Start the API Server
+        run: npm start &
+        env:
+          DATABASE_URL: mysql://admin:admin123@db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com:3306/parkiteso
+          NODE_ENV: test
+
+      - name: ⏳ Wait for API to be ready
+        run: sleep 10
+
+      - name: 🧪 Run API Tests
+        run: npm test
