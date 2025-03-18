@@ -22,26 +22,18 @@ jobs:
           node-version: 18
           cache: 'npm'
 
-      # Instalar dependencias en cada microservicio
+      # Instalar dependencias para cada microservicio
       - name: 📥 Install dependencies for parking_zones
-        run: |
-          cd parking_zones
-          npm install
+        run: cd parking_zones && npm install
 
       - name: 📥 Install dependencies for OAuth
-        run: |
-          cd OAuth
-          npm install
+        run: cd OAuth && npm install
 
       - name: 📥 Install dependencies for userProfile
-        run: |
-          cd userProfile
-          npm install
+        run: cd userProfile && npm install
 
       - name: 📥 Install dependencies for userLocation
-        run: |
-          cd userLocation
-          npm install
+        run: cd userLocation && npm install
 
       - name: 🚀 Start the API Servers
         run: |
@@ -61,21 +53,13 @@ jobs:
         run: sleep 10
 
       - name: 🧪 Run API Tests for parking_zones
-        run: |
-          cd parking_zones
-          npm test
+        run: cd parking_zones && npm test
 
       - name: 🧪 Run API Tests for OAuth
-        run: |
-          cd OAuth
-          npm test
+        run: cd OAuth && npm test
 
       - name: 🧪 Run API Tests for userProfile
-        run: |
-          cd userProfile
-          npm test
+        run: cd userProfile && npm test
 
       - name: 🧪 Run API Tests for userLocation
-        run: |
-          cd userLocation
-          npm test
+        run: cd userLocation && npm test
