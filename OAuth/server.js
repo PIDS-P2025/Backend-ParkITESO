@@ -32,7 +32,7 @@ db.connect(err => {
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const TENANT_ID = process.env.TENANT_ID;
-const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3000/auth/outlook/callback';
+const REDIRECT_URI = process.env.REDIRECT_URI || 'https://44.201.119.23:3005/auth/outlook/callback';
 const AUTH_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
 const TOKEN_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
 
