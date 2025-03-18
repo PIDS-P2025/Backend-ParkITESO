@@ -11,36 +11,32 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: 🛎️ Checkout Code
         uses: actions/checkout@v3
-
+        
       - name: 📦 Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: 'npm'
-
-      # Instalar dependencias para cada microservicio
+          
+      # Install dependencies for each microservice
       - name: 📥 Install dependencies for parking_zones
-        run: cd parking_zones && npm install
-
+        run: cd parking_zones && npm ci || npm install
+        
       - name: 📥 Install dependencies for OAuth
-        run: cd OAuth && npm install
-
+        run: cd OAuth && npm ci || npm install
+        
       - name: 📥 Install dependencies for userProfile
-        run: cd userProfile && npm install
-
+        run: cd userProfile && npm ci || npm install
+        
       - name: 📥 Install dependencies for userLocation
-        run: cd userLocation && npm install
-
-      - name: 🚀 Start the API Servers
-        run: |
-          cd parking_zones && npm start &
-          cd ../OAuth && npm start &
-          cd ../userProfile && npm start &
-          cd ../userLocation && npm start &
+        run: cd userLocation && npm ci || npm install
+        
+      # Run tests for each microservice
+      - name: 🧪 Run API Tests for parking_zones
+        run: cd parking_zones && npm test
         env:
           DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
           DATABASE_USER: admin
@@ -48,18 +44,33 @@ jobs:
           DATABASE_NAME: parkiteso
           DATABASE_PORT: 3306
           NODE_ENV: test
-
-      - name: ⏳ Wait for API to be ready
-        run: sleep 10
-
-      - name: 🧪 Run API Tests for parking_zones
-        run: cd parking_zones && npm test
-
+        
       - name: 🧪 Run API Tests for OAuth
         run: cd OAuth && npm test
-
+        env:
+          DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
+          DATABASE_USER: admin
+          DATABASE_PASSWORD: admin123
+          DATABASE_NAME: parkiteso
+          DATABASE_PORT: 3306
+          NODE_ENV: test
+        
       - name: 🧪 Run API Tests for userProfile
         run: cd userProfile && npm test
-
+        env:
+          DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
+          DATABASE_USER: admin
+          DATABASE_PASSWORD: admin123
+          DATABASE_NAME: parkiteso
+          DATABASE_PORT: 3306
+          NODE_ENV: test
+        
       - name: 🧪 Run API Tests for userLocation
         run: cd userLocation && npm test
+        env:
+          DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
+          DATABASE_USER: admin
+          DATABASE_PASSWORD: admin123
+          DATABASE_NAME: parkiteso
+          DATABASE_PORT: 3306
+          NODE_ENV: test
