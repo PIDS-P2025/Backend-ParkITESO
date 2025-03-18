@@ -1,0 +1,16 @@
+{
+  "name": "backend-parkiteso",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "Example",
+    "OAuth",
+    "parking_zones",
+    "userLocation",
+    "userProfile"
+  ],
+  "scripts": {
+    "install-all": "npm install && npm run install-subdirs",
+    "install-subdirs": "cd Example && npm install && cd ../OAuth && npm install && cd ../parking_zones && npm install && cd ../userLocation && npm install && cd ../userProfile && npm install"
+  }
+}
