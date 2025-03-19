@@ -1,0 +1,65 @@
+name: API Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    
+    - name: Install dependencies using setup script
+      run: bash ./setup.sh
+      
+    - name: Install test dependencies (if required)
+      run: |
+        if [ -d "test" ]; then
+          cd test && npm install && cd ..
+        fi
+    
+    - name: Start API Servers
+      run: |
+        cd parking_zones && npm start &
+        PARKING_PID=$!
+        cd ../OAuth && npm start &
+        OAUTH_PID=$!
+        cd ../userProfile && npm start &
+        PROFILE_PID=$!
+        cd ../userLocation && npm start &
+        LOCATION_PID=$!
+        
+        echo "Esperando que los servidores inicien..."
+        sleep 10
+        
+        if ps -p $PARKING_PID > /dev/null; then echo "Parking zones en ejecución"; else exit 1; fi
+        if ps -p $OAUTH_PID > /dev/null; then echo "OAuth en ejecución"; else exit 1; fi
+        if ps -p $PROFILE_PID > /dev/null; then echo "User Profile en ejecución"; else exit 1; fi
+        if ps -p $LOCATION_PID > /dev/null; then echo "User Location en ejecución"; else exit 1; fi
+    
+    - name: Run tests
+      run: |
+        if [ -d "test" ]; then
+          cd test && npm test
+        else
+          cd parking_zones && npm test
+          cd ../OAuth && npm test
+          cd ../userProfile && npm test
+          cd ../userLocation && npm test
+        fi
+      env:
+        DATABASE_HOST: db-parkiteso2.chg3se8fdf46.us-east-1.rds.amazonaws.com
+        DATABASE_USER: admin
+        DATABASE_PASSWORD: admin123
