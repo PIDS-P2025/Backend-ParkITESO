@@ -41,7 +41,7 @@ app.get('/vehicles', (req, res) => {
 // get cars by owner id
 app.get('/vehicles-get-by-owner/:id', (req, res) => {
   const { id } = req.params;
-  db.query('SELECT * FROM CARS WHERE propietario_id = ?', [id], (err, results) => {
+  db.query('SELECT * FROM CAR WHERE propietario_id = ?', [id], (err, results) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -60,7 +60,7 @@ app.post('/vehicles', (req, res) => {
   
   const query =
     'INSERT INTO CAR (placa, marca, modelo, color, tipo, propietario_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)';
-  db.query(query, [placa, marca, modelo, color, tipo, propietario_id, status], (err, result) => { //add enums for brand, model, color, type
+  db.query(query, [placa, marca, modelo, color, tipo, propietario_id, status], (err, result) => { //add enums for marca, modelo, color, tipo
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -70,23 +70,23 @@ app.post('/vehicles', (req, res) => {
 });
 
 // Actualizar un vehículo por ID
-app.put('/vehicles/:id', (req, res) => {
-  const { id } = req.params;
-  const { plate, brand, model, color, type, propietario_id } = req.body;
+app.put('/vehicles/', (req, res) => {
+  const { id, placa, marca, modelo, color, tipo, propietario_id } = req.body;
 
+  console.log(id, propietario_id)
   // Step 1: Check if propietario_id matches the one in the database
-  const checkQuery = 'SELECT propietario_id FROM CAR WHERE id = ?';
-  db.query(checkQuery, [id], (checkErr, checkResults) => {
+  const checkQuery = 'SELECT id FROM USERS WHERE id = ?';
+  db.query(checkQuery, [propietario_id], (checkErr, checkResults) => {
     if (checkErr) {
       res.status(500).json({ error: checkErr.message });
       return;
     }
     if (checkResults.length === 0) {
-      res.status(404).json({ message: 'Vehiculo no encontrado' });
+      res.status(404).json({ message: 'Usuario no encontrado' });
       return;
     }
 
-    const existingPropietarioId = checkResults[0].propietario_id;
+    const existingPropietarioId = checkResults[0].id;
     if (existingPropietarioId !== propietario_id) {
       res.status(403).json({ message: 'No tienes permiso para actualizar este vehículo' });
       return;
@@ -94,27 +94,28 @@ app.put('/vehicles/:id', (req, res) => {
 
     // Step 2: Proceed with the update if propietario_id matches
     const updateQuery =
-      'UPDATE CAR SET plate=?, brand=?, color=?, type=? WHERE id=?';
+      'UPDATE CAR SET placa=?, marca=?, modelo=?, color=?, tipo=? WHERE id=?';
     db.query(
       updateQuery,
-      [plate, brand, model, color, type, id],
+      [placa, marca, modelo, color, tipo, id],
       (updateErr, updateResult) => {
         if (updateErr) {
           res.status(500).json({ error: updateErr.message });
           return;
         }
         if (updateResult.affectedRows === 0) {
+          console.log(id)
           res.status(404).json({ message: 'Vehiculo no encontrado' });
           return;
         }
-        res.json({ id, plate, brand, model, color, type, propietario_id });
+        res.json({ id, placa, marca, modelo, color, tipo, propietario_id });
       }
     );
   });
 });
 
 // Eliminar un vehículo por ID
-app.delete('/vehicle/:id', (req, res) => {
+app.delete('/vehicles/:id', (req, res) => {
   const { id } = req.params;
   db.query('DELETE FROM CAR WHERE id = ?', [id], (err, result) => {
     if (err) {
@@ -122,7 +123,7 @@ app.delete('/vehicle/:id', (req, res) => {
       return;
     }
     if (result.affectedRows === 0) {
-      res.status(404).json({ message: 'Vehiculo no encontrada' });
+      res.status(404).json({ message: 'Vehiculo no encontrado' });
       return;
     }
     res.json({ message: 'Vehiculo eliminado correctamente' });
