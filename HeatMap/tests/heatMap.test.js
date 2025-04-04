@@ -1,84 +1,87 @@
-const request = require("supertest");
-const app = require("../server");
-const axios = require("axios");
+const request = require('supertest');
+const app = require('./server'); // Asegúrate de exportar `app` en tu código principal
+
+// Mock axios
 jest.mock("axios");
 
-describe("GET /api/googlePLace", () => {
+describe("POST /location", () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        jest.clearAllMocks(); // Clear mocks before each test
     });
 
-    it("should return 400 if query parameter is missing", async () => {
-        const res = await request(app).get("/api/googlePLace");
+    it("should return 400 if latitude or longitude is missing", async () => {
+        const res = await request(app).post("/location").send({});
         expect(res.status).toBe(400);
-        expect(res.body).toEqual({ error: "Falta el parámetro de búsqueda" });
+        expect(res.body).toEqual({ error: "Faltan coordenadas" });
     });
 
-    it("should return data from Google Places API when query parameter is provided", async () => {
-        const mockResponse = {
-        results: [
-            { name: "Place 1", address: "Address 1" },
-            { name: "Place 2", address: "Address 2" },
-        ],
-        };
+    it("should return 404 if Google API does not return valid results", async () => {
+        axios.get.mockResolvedValue({
+            data: { status: "ZERO_RESULTS", results: [] },
+        });
 
-    axios.get.mockResolvedValue({ data: mockResponse });
+        const res = await request(app).post("/location").send({
+            latitud: 20.67,
+            longitud: -103.35,
+        });
 
-    const res = await request(app).get("/api/googlePLace").query({ query: "restaurant" });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(mockResponse);
-    expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining("https://maps.googleapis.com/maps/api/place/textsearch/json"),
-        {
-            params: {
-            query: "restaurant",
-            key: process.env.GOOGLE_API_KEY,
-            },
-        }
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: "No se pudo obtener dirección" });
+        expect(axios.get).toHaveBeenCalledWith(
+            expect.stringContaining("https://maps.googleapis.com/maps/api/geocode/json"),
+            expect.objectContaining({
+                params: {
+                    latlng: "20.67,-103.35",
+                    key: process.env.GOOGLE_API_KEY,
+                },
+            })
         );
     });
 
-    it("should return 500 if Google Places API request fails", async () => {
-        axios.get.mockRejectedValue(new Error("Google API Error"));
+    it("should return 200 and address when Google API returns valid results", async () => {
+        axios.get.mockResolvedValue({
+            data: {
+                status: "OK",
+                results: [
+                    { formatted_address: "Some Address" },
+                ],
+            },
+        });
 
-        const res = await request(app).get("/api/googlePLace").query({ query: "restaurant" });
+        const res = await request(app).post("/location").send({
+            latitud: 20.67,
+            longitud: -103.35,
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+            direccion: "Some Address",
+            coordenadas: {
+                lat: 20.67,
+                lng: -103.35,
+            },
+        });
+        expect(axios.get).toHaveBeenCalledWith(
+            expect.stringContaining("https://maps.googleapis.com/maps/api/geocode/json"),
+            expect.objectContaining({
+                params: {
+                    latlng: "20.67,-103.35",
+                    key: process.env.GOOGLE_API_KEY,
+                },
+            })
+        );
+    });
+
+    it("should return 500 if there is an internal server error", async () => {
+        axios.get.mockRejectedValue(new Error("Internal Server Error"));
+
+        const res = await request(app).post("/location").send({
+            latitud: 20.67,
+            longitud: -103.35,
+        });
 
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ error: "Error al obtener datos de Google Places" });
+        expect(res.body).toEqual({ error: "Error interno del servidor" });
         expect(axios.get).toHaveBeenCalled();
-    });
-});
-
-describe('POST /location', () => {
-    it('should return 400 if latitude or longitude is missing', async () => {
-    const response = await request(app)
-        .post('/location')
-        .send({ latitud: 20.6597 }); // Missing longitud
-
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "Faltan coordenadas" });
-    });
-
-    it('should return 200 and a success message if latitude and longitude are provided', async () => {
-    const response = await request(app)
-        .post('/location')
-        .send({ latitud: 20.6597, longitud: -103.3496 });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ mensaje: "Recieved Location" });
-    });
-
-    it('should return 500 if there is a server error', async () => {
-        jest.spyOn(console, 'error').mockImplementation(() => {}); // Suppress console.error in test output
-
-        const response = await request(app)
-            .post('/location')
-            .send(null); // Simulate a server error
-
-        expect(response.status).toBe(500);
-        expect(response.body).toEqual({ error: "Error interno del servidor" });
-
-      console.error.mockRestore(); // Restore console.error
     });
 });
