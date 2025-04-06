@@ -1,24 +1,58 @@
 const request = require("supertest");
-const express = require("express");
-const app = express();
-app.use(express.json());
+const app = require("../server"); 
 
-app.post("/checkout", (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: "userId is required" });
-  res.status(200).json({ message: "Mock OK", userId });
-});
+describe("🧪 Test de Checkout API", () => {
 
-describe("POST /checkout", () => {
-  it("debe rechazar si falta userId", async () => {
+  const manualUser = 1;         // Tiene historial válido y auto_checkout_enabled activado o no importa
+  const autoUser = 2;           // Tiene historial válido y auto_checkout_enabled = 1
+  const disabledAutoUser = 3;   // Tiene historial válido pero auto_checkout_enabled = 0
+  const noHistoryUser = 9999;   // Usuario sin historial
+
+  test("🚫 Rechaza si falta userId", async () => {
     const res = await request(app).post("/checkout").send({});
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe("userId is required");
+    expect(res.body.error).toMatch(/userId/i);
   });
 
-  it("debe aceptar si userId está presente", async () => {
-    const res = await request(app).post("/checkout").send({ userId: 1 });
+  test("🚫 Rechaza checkout automático si auto_checkout_enabled está desactivado", async () => {
+    const res = await request(app).post("/checkout").send({
+      userId: disabledAutoUser,
+      type: "automatic",
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/desactivado/i);
+  });
+
+  test("📋 Rechaza checkout si el usuario no tiene historial", async () => {
+    const res = await request(app).post("/checkout").send({
+      userId: noHistoryUser,
+      type: "manual",
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toMatch(/historial/i);
+  });
+
+  test("✅ Realiza checkout manual exitosamente", async () => {
+    const res = await request(app).post("/checkout").send({
+      userId: manualUser,
+      type: "manual",
+    });
+
     expect(res.statusCode).toBe(200);
-    expect(res.body.userId).toBe(1);
+    expect(res.body.data).toHaveProperty("checkoutTime");
+    expect(res.body.message).toMatch(/éxito/i);
+  });
+
+  test("✅ Realiza checkout automático exitosamente", async () => {
+    const res = await request(app).post("/checkout").send({
+      userId: autoUser,
+      type: "automatic",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data).toHaveProperty("checkoutTime");
+    expect(res.body.data.type).toBe("automatic");
   });
 });
