@@ -6,30 +6,24 @@ const { swaggerUi, swaggerSpec } = require("./swagger");
 const app = express();
 app.use(express.json());
 
-// Swagger docs endpoint
+// Swagger docs
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
-// Conexión a RDS
+// Conexión a la base de datos
 const db = mysql.createConnection({
-  host: process.env.DB_HOST || "tu-host",
-  user: process.env.DB_USER || "admin",
-  password: process.env.DB_PASS || "admin123",
-  database: process.env.DB_NAME || "parkiteso"
+  host: process.env.RDS_ENDPOINT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 });
 
-// Conexión y prueba de tablas
 db.connect((err) => {
   if (err) {
     console.error("❌ Error al conectar a RDS:", err.message);
   } else {
     console.log("✅ Conectado a MariaDB en RDS");
-
-    db.query("SHOW TABLES", (err, results) => {
-      if (err) throw err;
-      console.log("🗂 Tablas disponibles:", results);
-    });
   }
 });
 
@@ -37,8 +31,8 @@ db.connect((err) => {
  * @swagger
  * /checkout:
  *   post:
- *     summary: Registrar un checkout automático
- *     description: Registra la salida de un usuario del estacionamiento ITESO.
+ *     summary: Registrar un checkout (manual o automático)
+ *     description: Registra la salida del usuario desde el ITESO (checkout automático o manual).
  *     requestBody:
  *       required: true
  *       content:
@@ -50,14 +44,21 @@ db.connect((err) => {
  *             properties:
  *               userId:
  *                 type: integer
+ *               type:
+ *                 type: string
+ *                 enum: [manual, automatic]
  *     responses:
  *       200:
  *         description: Checkout exitoso
- *       400:
- *         description: userId faltante
+ *       403:
+ *         description: El usuario tiene desactivado el checkout automático
+ *       404:
+ *         description: Usuario o historial no encontrado
+ *       500:
+ *         description: Error interno
  */
 app.post("/checkout", (req, res) => {
-  const { userId } = req.body;
+  const { userId, type = "automatic" } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: "userId is required" });
@@ -67,27 +68,87 @@ app.post("/checkout", (req, res) => {
     timeZone: "America/Mexico_City",
   });
 
-  const parkingData = JSON.stringify([
-    { zone: "ITESO", checkout: checkoutTime }
-  ]);
+  // Paso 1: Verificar auto_checkout_enabled si es automático
+  const getUserSettings = `SELECT auto_checkout_enabled FROM USERS WHERE id = ?`;
 
-  const sql = `
-    INSERT INTO HISTORY (user_id, reports, notifications, past_parking_spots)
-    VALUES (?, '', '', ?)
-  `;
-
-  db.query(sql, [userId, parkingData], (err, result) => {
-    if (err) {
-      console.error("❌ Error al guardar el checkout:", err.message);
-      return res.status(500).json({ error: "Error al guardar en la base de datos" });
+  db.query(getUserSettings, [userId], (userErr, userResults) => {
+    if (userErr) {
+      console.error("❌ Error al consultar usuario:", userErr.message);
+      return res.status(500).json({ error: "Error al consultar usuario" });
     }
 
-    res.json({
-      message: "✅ Checkout registrado con éxito en HISTORY",
-      data: {
-        userId,
-        checkoutTime
+    if (userResults.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    const { auto_checkout_enabled } = userResults[0];
+
+    if (type === "automatic" && auto_checkout_enabled !== 1) {
+      return res.status(403).json({ message: "El usuario tiene desactivado el checkout automático" });
+    }
+
+    // Paso 2: Buscar historial más reciente
+    const getHistoryQuery = `
+      SELECT id, past_parking_spots 
+      FROM HISTORY 
+      WHERE user_id = ? 
+      ORDER BY id DESC 
+      LIMIT 1
+    `;
+
+    db.query(getHistoryQuery, [userId], (histErr, results) => {
+      if (histErr) {
+        console.error("❌ Error al consultar historial:", histErr.message);
+        return res.status(500).json({ error: "Error al consultar historial" });
       }
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: "No hay historial de check-in para este usuario" });
+      }
+
+      const history = results[0];
+      let parkingData;
+
+      try {
+        parkingData = JSON.parse(history.past_parking_spots);
+      } catch (parseErr) {
+        return res.status(500).json({ error: "Error al interpretar historial" });
+      }
+
+      const lastEntry = parkingData[parkingData.length - 1];
+
+      if (lastEntry.checkout) {
+        return res.status(400).json({ message: "El usuario ya hizo checkout previamente" });
+      }
+
+      lastEntry.checkout = checkoutTime;
+      lastEntry.checkoutType = type;
+
+      const updatedHistory = JSON.stringify(parkingData);
+
+      const updateQuery = `
+        UPDATE HISTORY 
+        SET past_parking_spots = ?
+        WHERE id = ?
+      `;
+
+      db.query(updateQuery, [updatedHistory, history.id], (updateErr) => {
+        if (updateErr) {
+          console.error("❌ Error al actualizar checkout:", updateErr.message);
+          return res.status(500).json({ error: "Error al actualizar checkout" });
+        }
+
+        console.log(`✅ Checkout (${type}) registrado para usuario ${userId} a las ${checkoutTime}`);
+
+        res.json({
+          message: `Checkout ${type} registrado con éxito`,
+          data: {
+            userId,
+            checkoutTime,
+            type,
+          },
+        });
+      });
     });
   });
 });
@@ -96,7 +157,7 @@ app.post("/checkout", (req, res) => {
  * @swagger
  * /historial/{userId}:
  *   get:
- *     summary: Obtener historial de checkouts por usuario
+ *     summary: Obtener historial de checkouts
  *     parameters:
  *       - in: path
  *         name: userId
@@ -105,9 +166,9 @@ app.post("/checkout", (req, res) => {
  *           type: integer
  *     responses:
  *       200:
- *         description: Lista de checkouts
+ *         description: Historial obtenido
  *       500:
- *         description: Error en servidor
+ *         description: Error interno
  */
 app.get("/historial/:userId", (req, res) => {
   const { userId } = req.params;
@@ -125,15 +186,28 @@ app.get("/historial/:userId", (req, res) => {
       return res.status(500).json({ error: "Error al obtener historial" });
     }
 
-    const historial = results.map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      checkouts: JSON.parse(row.past_parking_spots)
-    }));
+    const historial = results.flatMap((row) => {
+      let spots = [];
+      try {
+        spots = JSON.parse(row.past_parking_spots);
+      } catch (_) {
+        spots = [];
+      }
+
+      return spots.map((entry, i) => ({
+        recordId: row.id,
+        userId: row.user_id,
+        entryNumber: i + 1,
+        zone: entry.zone,
+        checkin: entry.checkin,
+        checkout: entry.checkout || "N/A",
+        checkoutType: entry.checkoutType || "N/A",
+      }));
+    });
 
     res.json({
       message: "📋 Historial obtenido con éxito",
-      data: historial
+      data: historial,
     });
   });
 });
@@ -141,3 +215,5 @@ app.get("/historial/:userId", (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Servicio de checkout corriendo en http://localhost:${PORT}`);
 });
+
+module.exports = app;

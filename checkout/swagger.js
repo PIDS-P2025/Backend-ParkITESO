@@ -1,19 +1,25 @@
-const swaggerJSDoc = require("swagger-jsdoc");
+const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
 const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Checkout API - ParkITESO",
+      title: "ParkITESO - Checkout API",
       version: "1.0.0",
-      description: "Documentación de la API de checkout automático",
+      description: "Microservicio para registrar checkouts automáticos y manuales en ParkITESO.",
     },
+    servers: [
+      {
+        url: "http://localhost:4000",
+        description: "Servidor local de desarrollo",
+      },
+    ],
   },
-  apis: ["./server.js"],
+  apis: ["./server.js"], // Ruta al archivo que contiene los comentarios Swagger
 };
 
-const swaggerSpec = swaggerJSDoc(options);
+const swaggerSpec = swaggerJsdoc(options);
 
 module.exports = {
   swaggerUi,
