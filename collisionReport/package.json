@@ -1,5 +1,5 @@
 {
-    "name": "collisionReport",
+    "name": "collision-report",
     "version": "1.0.0",
     "description": "Service to report vehicle collisions",
     "main": "server.js",
