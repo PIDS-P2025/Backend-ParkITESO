@@ -11,11 +11,11 @@ app.use(bodyParser.json());
 
 // Configuración de la conexión a la base de datos
 const db = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: 3306,
+  host: process.env.RDS_ENDPOINT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: 3306,
 });
 
 // Conectar a la base de datos
@@ -46,10 +46,6 @@ app.get('/vehicles-get-by-owner/:id', (req, res) => {
       res.status(500).json({ error: err.message });
       return;
     }
-    if (results.length === 0) {
-      res.status(404).json({ message: 'propietario no encontrado' });
-      return;
-    }
     res.json(results);
   });
 });
@@ -57,10 +53,11 @@ app.get('/vehicles-get-by-owner/:id', (req, res) => {
 // Crear un nuevo vehículo
 app.post('/vehicles', (req, res) => {
   const { placa, marca, modelo, color, tipo, propietario_id, status } = req.body;
-  
+
   const query =
     'INSERT INTO CAR (placa, marca, modelo, color, tipo, propietario_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)';
-  db.query(query, [placa, marca, modelo, color, tipo, propietario_id, status], (err, result) => { //add enums for marca, modelo, color, tipo
+  db.query(query, [placa, marca, modelo, color, tipo, propietario_id, status], (err, result) => {
+    //add enums for marca, modelo, color, tipo
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -73,7 +70,7 @@ app.post('/vehicles', (req, res) => {
 app.put('/vehicles/', (req, res) => {
   const { id, placa, marca, modelo, color, tipo, propietario_id } = req.body;
 
-  console.log(id, propietario_id)
+  console.log(id, propietario_id);
   // Step 1: Check if propietario_id matches the one in the database
   const checkQuery = 'SELECT id FROM USERS WHERE id = ?';
   db.query(checkQuery, [propietario_id], (checkErr, checkResults) => {
@@ -93,24 +90,19 @@ app.put('/vehicles/', (req, res) => {
     }
 
     // Step 2: Proceed with the update if propietario_id matches
-    const updateQuery =
-      'UPDATE CAR SET placa=?, marca=?, modelo=?, color=?, tipo=? WHERE id=?';
-    db.query(
-      updateQuery,
-      [placa, marca, modelo, color, tipo, id],
-      (updateErr, updateResult) => {
-        if (updateErr) {
-          res.status(500).json({ error: updateErr.message });
-          return;
-        }
-        if (updateResult.affectedRows === 0) {
-          console.log(id)
-          res.status(404).json({ message: 'Vehiculo no encontrado' });
-          return;
-        }
-        res.json({ id, placa, marca, modelo, color, tipo, propietario_id });
+    const updateQuery = 'UPDATE CAR SET placa=?, marca=?, modelo=?, color=?, tipo=? WHERE id=?';
+    db.query(updateQuery, [placa, marca, modelo, color, tipo, id], (updateErr, updateResult) => {
+      if (updateErr) {
+        res.status(500).json({ error: updateErr.message });
+        return;
       }
-    );
+      if (updateResult.affectedRows === 0) {
+        console.log(id);
+        res.status(404).json({ message: 'Vehiculo no encontrado' });
+        return;
+      }
+      res.json({ id, placa, marca, modelo, color, tipo, propietario_id });
+    });
   });
 });
 
