@@ -1,22 +1,26 @@
 require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2');
-const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const cors = require('cors');
+const multer = require('multer');
+const crypto = require('crypto');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const app = express();
-const PORT = 4002;
+const PORT = process.env.PORT || 4002;
 
+app.use(cors());
 app.use(express.json());
 
-// Configurar conexión a base de datos
+// DB
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  charset: 'utf8mb4',
 });
 
-// Conectar a base de datos
 db.connect((err) => {
   if (err) {
     console.error('❌ Error conectando a la base de datos:', err.message);
@@ -25,39 +29,40 @@ db.connect((err) => {
   }
 });
 
-// Configurar cliente de AWS SES
-const sesClient = new SESClient({ region: "us-east-1" });
+// AWS S3
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+  },
+});
 
-async function sendEmail(toEmail, subject, bodyHtml) {
-  const params = {
-    Destination: {
-      ToAddresses: [toEmail],
-    },
-    Message: {
-      Body: {
-        Html: {
-          Charset: "UTF-8",
-          Data: bodyHtml,
-        },
-      },
-      Subject: {
-        Charset: "UTF-8",
-        Data: subject,
-      },
-    },
-    Source: process.env.EMAIL_SOURCE, // correo verificado en SES
-  };
+const upload = multer({ storage: multer.memoryStorage() });
 
-  const command = new SendEmailCommand(params);
-  await sesClient.send(command);
+async function uploadToS3(fileBuffer, originalname) {
+  const key = `collision_reports/${crypto.randomUUID()}-${originalname}`;
+  const command = new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME,
+    Key: key,
+    Body: fileBuffer,
+    ContentType: 'image/jpeg',
+  });
+  await s3.send(command);
+  return `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${key}`;
 }
 
-// 📍 POST /collisions — Reportar un incidente y notificar al afectado
-app.post('/collisions', async (req, res) => {
-  const { reporterUserId, affectedPlate, location, description, photoUrl } = req.body;
+// 📍 POST /collisions
+app.post('/collisions', upload.single('photo'), async (req, res) => {
+  const { reporterUserId, affectedPlate, location, description } = req.body;
+  const file = req.file;
 
   try {
-    // 1. Buscar el propietario del carro afectado
+    if (!file) return res.status(400).json({ error: 'Falta la foto del daño.' });
+
+    const photoUrl = await uploadToS3(file.buffer, file.originalname);
+
     const [plateRows] = await db.promise().query(
       'SELECT propietario_id FROM CAR WHERE placa = ?',
       [affectedPlate]
@@ -69,42 +74,22 @@ app.post('/collisions', async (req, res) => {
 
     const affectedUserId = plateRows[0].propietario_id;
 
-    // 2. Buscar el email del propietario
-    const [userRows] = await db.promise().query(
-      'SELECT email FROM USERS WHERE id = ?',
-      [affectedUserId]
-    );
-
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'No se encontró el usuario afectado' });
-    }
-
-    const affectedEmail = userRows[0].email;
-
-    // 3. Guardar el reporte en la base de datos
     await db.promise().query(
       `INSERT INTO COLLISION_REPORTS 
-       (reporter_user_id, affected_plate, affected_user_id, location, description, photo_url) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+        (reporter_user_id, affected_plate, affected_user_id, location, description, photo_url) 
+        VALUES (?, ?, ?, ?, ?, ?)`,
       [reporterUserId, affectedPlate, affectedUserId, location, description, photoUrl]
     );
 
-    // 4. Enviar correo al afectado
-    await sendEmail(
-      affectedEmail,
-      "Notification: Your Vehicle Was Involved in an Incident",
-      `<p>Dear user,</p><p>Your vehicle with plate <strong>${affectedPlate}</strong> has been reported in an incident at <strong>${location}</strong>.</p><p>Please review the details in your account.</p>`
-    );
-
-    res.status(201).json({ message: 'Reporte de colisión guardado y notificación enviada' });
+    res.status(201).json({ message: 'Reporte guardado correctamente (sin correo)' });
 
   } catch (error) {
-    console.error('❌ Error al guardar o enviar notificación:', error.message);
-    res.status(500).json({ error: 'Error al procesar el reporte de colisión' });
+    console.error('❌ Error en /collisions:', error.message);
+    res.status(500).json({ error: 'Error al guardar el reporte de colisión' });
   }
 });
 
-// 📍 GET /collisions — Obtener todos los reportes
+// 📍 GET /collisions
 app.get('/collisions', async (req, res) => {
   try {
     const [rows] = await db.promise().query('SELECT * FROM COLLISION_REPORTS ORDER BY timestamp DESC');
@@ -115,7 +100,7 @@ app.get('/collisions', async (req, res) => {
   }
 });
 
-// 📍 GET /collisions/:id — Obtener un reporte específico
+// 📍 GET /collisions/:id
 app.get('/collisions/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -127,10 +112,8 @@ app.get('/collisions/:id', async (req, res) => {
     }
 
     const report = rows[0];
-
     if (report.timestamp) {
-      const dateObj = new Date(report.timestamp);
-      report.timestamp = dateObj.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+      report.timestamp = new Date(report.timestamp).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
     }
 
     res.json(report);
@@ -140,7 +123,7 @@ app.get('/collisions/:id', async (req, res) => {
   }
 });
 
-// 📍 PATCH /collisions/:id — Actualizar el estado de un reporte
+// 📍 PATCH /collisions/:id
 app.patch('/collisions/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -167,7 +150,7 @@ app.patch('/collisions/:id', async (req, res) => {
   }
 });
 
-// 📍 DELETE /collisions/:id — Eliminar un reporte
+// 📍 DELETE /collisions/:id
 app.delete('/collisions/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -188,7 +171,7 @@ app.delete('/collisions/:id', async (req, res) => {
   }
 });
 
-// 📍 GET /collisions/mine/:reporterUserId — Obtener reportes enviados por un usuario
+// 📍 GET /collisions/mine/:reporterUserId
 app.get('/collisions/mine/:reporterUserId', async (req, res) => {
   const { reporterUserId } = req.params;
 
@@ -205,7 +188,12 @@ app.get('/collisions/mine/:reporterUserId', async (req, res) => {
   }
 });
 
-// Iniciar el servidor
-app.listen(PORT, () => {
-  console.log(`🚗 Servicio de Collision Reports escuchando en http://localhost:${PORT}`);
-});
+// Iniciar servidor
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚗 Servicio de Collision Reports activo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { app };
+
