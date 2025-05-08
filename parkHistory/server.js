@@ -65,7 +65,7 @@ app.get('/history', (req, res) => {
   db.query(getAllHistoryQuery, (err, results) => {
     if (err) {
       console.error('❌ Error al obtener historial completo:', err.message);
-      return res.status(500).json({ error: 'Error al obtener historial completo' });
+      return res.status(500).json(err.message);
     }
 
     if (results.length === 0) {
