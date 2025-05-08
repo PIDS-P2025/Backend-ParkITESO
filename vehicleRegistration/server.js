@@ -54,6 +54,32 @@ app.get('/vehicles-get-by-owner/:id', (req, res) => {
   });
 });
 
+// Obtener todas las marcas
+app.get('/vehicle-data/brands', (req, res) => {
+  const query = 'SELECT DISTINCT marca FROM CAR_MODELS';
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(results.map(row => row.marca));
+  });
+});
+
+// Obtener modelos por marca
+app.get('/vehicle-data/models', (req, res) => {
+  const { marca } = req.query;
+  const query = 'SELECT modelo FROM CAR_MODELS WHERE marca = ?';
+  db.query(query, [marca], (err, results) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(results.map(row => row.modelo));
+  });
+});
+
+
 // Crear un nuevo vehículo
 app.post('/vehicles', (req, res) => {
   const { placa, marca, modelo, color, tipo, propietario_id, status } = req.body;
