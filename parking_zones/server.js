@@ -107,6 +107,57 @@ app.delete('/parking_zones/:id', (req, res) => {
   });
 });
 
+// Recomendación de zona con más disponibilidad
+app.get('/zone-recommendation/live', (req, res) => {
+  const query = 'SELECT id, name, num_slots, use_slots FROM PARKING_ZONES';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+
+    if (!results || results.length === 0) {
+      res.status(404).json({ message: 'No hay zonas registradas' });
+      return;
+    }
+
+    const zonesWithAvailability = results.map((zone) => {
+      const { id, name, num_slots, use_slots } = zone;
+
+      // Asegurar que los valores negativos se consideren como 0
+      const used = Math.max(0, use_slots);
+      const available = Math.max(0, num_slots - used);
+      const occupancyRate = num_slots > 0 ? used / num_slots : 1;
+
+      let availabilityLevel = 'Low';
+      if (occupancyRate < 0.4) {
+        availabilityLevel = 'High';
+      } else if (occupancyRate <= 0.7) {
+        availabilityLevel = 'Medium';
+      }
+
+      return {
+        zoneId: id,
+        zoneName: name,
+        currentOccupancy: used,
+        maxCapacity: num_slots,
+        availabilityLevel,
+      };
+    });
+
+    // Ordenar por mayor disponibilidad (menos ocupación)
+    zonesWithAvailability.sort((a, b) => {
+      return (
+        (b.maxCapacity - b.currentOccupancy) / b.maxCapacity -
+        (a.maxCapacity - a.currentOccupancy) / a.maxCapacity
+      );
+    });
+
+    res.json(zonesWithAvailability[0]); // Solo sugerimos una zona
+  });
+});
+
 // Iniciar el servidor
 app.listen(port, () => {
   console.log(`La aplicación está escuchando en ${port}`);

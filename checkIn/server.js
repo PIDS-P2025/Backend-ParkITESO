@@ -11,11 +11,11 @@ app.use(bodyParser.json());
 
 // Configuración de la conexión a la base de datos
 const db = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: 3306,
+  host: process.env.RDS_ENDPOINT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: 3306,
 });
 
 // Conectar a la base de datos
@@ -43,6 +43,7 @@ app.post('/check-in', (req, res) => {
       res.status(500).json({ error: zoneErr.message });
       return;
     }
+    Me;
 
     if (zoneResults.length === 0) {
       res.status(404).json({ message: 'No parking zone found for the given coordinates' });
