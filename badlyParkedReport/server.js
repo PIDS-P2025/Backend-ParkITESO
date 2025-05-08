@@ -10,19 +10,20 @@ const app = express();
 app.use(express.json());
 
 const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
+  host: process.env.RDS_HOSTNAME,
+  user: process.env.RDS_USERNAME,
+  password: process.env.RDS_PASSWORD,
+  database: process.env.RDS_DB_NAME,
+  port: process.env.RDS_PORT || 3306,
 }).promise();
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  accessKeyId: process.env.AWS_ACCESS_KEY,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  sessionToken: process.env.AWS_SESSION_TOKEN,
   region: process.env.AWS_REGION
 });
 
@@ -48,22 +49,23 @@ app.post('/report-bad-parking', upload.single('photo'), async (req, res) => {
       [point]
     );
 
+    let zonaNombre = 'Zona A1'    
     if (zoneResults.length === 0) {
-      return res.status(404).json({ message: 'No se encontró zona para las coordenadas proporcionadas' });
-    }
+        zonaNombre = 'No se pudo identificar zona'
+   }else{
+        zonaNombre = zoneResults[0].name;
 
-    const zonaNombre = zoneResults[0].name;
+   }
 
     const fileContent = req.file.buffer;
     const ext = path.extname(req.file.originalname);
     const s3Key = `reports/${Date.now()}${ext}`;
 
     const uploadParams = {
-      Bucket: process.env.AWS_BUCKET_NAME,
+      Bucket: process.env.S3_BUCKET_NAME,
       Key: s3Key,
       Body: fileContent,
-      ContentType: req.file.mimetype,
-      ACL: 'public-read'
+      ContentType: req.file.mimetype
     };
 
     const s3Result = await s3.upload(uploadParams).promise();
