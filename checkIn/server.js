@@ -74,12 +74,21 @@ app.post('/check-in', (req, res) => {
       }
 
       // Step 3: Update the HISTORY table for the given user_id
+      const checkInDate = new Date().toLocaleString("es-MX", {
+        timeZone: "America/Mexico_City",
+      });
+      const newEntry = JSON.stringify([{ zone: zoneName, checkout: "Empty", checkin: checkInDate }]);
+
       const updateHistoryQuery = `
         UPDATE HISTORY 
-        SET past_parking_spots = CONCAT(past_parking_spots, ', ', ?) 
+        SET past_parking_spots = 
+          CASE 
+            WHEN past_parking_spots IS NULL OR past_parking_spots = '' THEN ?
+            ELSE CONCAT(SUBSTRING(past_parking_spots, 1, LENGTH(past_parking_spots) - 1), ',', ?) 
+          END
         WHERE user_id = ?
       `;
-      db.query(updateHistoryQuery, [zoneName, user_id], (historyErr) => {
+      db.query(updateHistoryQuery, [newEntry, newEntry.slice(1), user_id], (historyErr) => {
         if (historyErr) {
           res.status(500).json({ error: historyErr.message });
           return;

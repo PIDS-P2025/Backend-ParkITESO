@@ -13,10 +13,11 @@ const PORT = 4000;
 
 // Conexión a RDS
 const db = mysql.createConnection({
-  host: process.env.DB_HOST || "tu-host",
-  user: process.env.DB_USER || "admin",
-  password: process.env.DB_PASS || "admin123",
-  database: process.env.DB_NAME || "parkiteso"
+    host: process.env.RDS_ENDPOINT,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: 3306,
 });
 
 // Conexión y prueba de tablas
@@ -67,27 +68,57 @@ app.post("/checkout", (req, res) => {
     timeZone: "America/Mexico_City",
   });
 
-  const parkingData = JSON.stringify([
-    { zone: "ITESO", checkout: checkoutTime }
-  ]);
-
-  const sql = `
-    INSERT INTO HISTORY (user_id, reports, notifications, past_parking_spots)
-    VALUES (?, '', '', ?)
+  // Step 1: Retrieve the current past_parking_spots for the user
+  const getHistoryQuery = `
+    SELECT past_parking_spots 
+    FROM HISTORY 
+    WHERE user_id = ? 
+    ORDER BY id DESC 
+    LIMIT 1
   `;
 
-  db.query(sql, [userId, parkingData], (err, result) => {
-    if (err) {
-      console.error("❌ Error al guardar el checkout:", err.message);
-      return res.status(500).json({ error: "Error al guardar en la base de datos" });
+  db.query(getHistoryQuery, [userId], (getErr, results) => {
+    if (getErr) {
+      console.error("❌ Error al obtener historial:", getErr.message);
+      return res.status(500).json({ error: "Error al obtener historial" });
     }
 
-    res.json({
-      message: "✅ Checkout registrado con éxito en HISTORY",
-      data: {
-        userId,
-        checkoutTime
+    if (results.length === 0) {
+      return res.status(404).json({ error: "No history found for the user" });
+    }
+
+    // Step 2: Parse the past_parking_spots and update the last item's checkout time
+    let pastParkingSpots = JSON.parse(results[0].past_parking_spots);
+    if (pastParkingSpots.length === 0) {
+      return res.status(400).json({ error: "No parking spots to update" });
+    }
+
+    // Update the last item's checkout time
+    pastParkingSpots[pastParkingSpots.length - 1].checkout = checkoutTime;
+
+    // Step 3: Save the updated past_parking_spots back to the database
+    const updateHistoryQuery = `
+      UPDATE HISTORY 
+      SET past_parking_spots = ? 
+      WHERE user_id = ? 
+      ORDER BY id DESC 
+      LIMIT 1
+    `;
+
+    db.query(updateHistoryQuery, [JSON.stringify(pastParkingSpots), userId], (updateErr) => {
+      if (updateErr) {
+        console.error("❌ Error al actualizar historial:", updateErr.message);
+        return res.status(500).json({ error: "Error al actualizar historial" });
       }
+
+      // Respond with success
+      res.json({
+        message: "✅ Checkout registrado con éxito",
+        data: {
+          userId,
+          checkoutTime,
+        },
+      });
     });
   });
 });
