@@ -27,6 +27,31 @@ db.connect((err) => {
   console.log('Conectado a la base de datos MySQL');
 });
 
+app.get('/history', (req, res) => {
+  // Query to retrieve all records from the HISTORY table
+  const getAllHistoryQuery = `
+    SELECT * 
+    FROM HISTORY
+    ORDER BY id DESC
+  `;
+
+  db.query(getAllHistoryQuery, (err, results) => {
+    if (err) {
+      console.error('❌ Error al obtener historial completo:', err.message);
+      return res.status(500).json(err.message);
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'No history records found' });
+    }
+
+    res.json({
+      message: '📋 All history records retrieved successfully',
+      data: results,
+    });
+  });
+});
+
 app.post('/check-in', (req, res) => {
   const { latitude, longitude, user_id } = req.body;
 
@@ -43,7 +68,6 @@ app.post('/check-in', (req, res) => {
       res.status(500).json({ error: zoneErr.message });
       return;
     }
-    Me;
 
     if (zoneResults.length === 0) {
       res.status(404).json({ message: 'No parking zone found for the given coordinates' });
@@ -79,7 +103,7 @@ app.post('/check-in', (req, res) => {
       });
       const newEntry = JSON.stringify([{ zone: zoneName, checkout: "Empty", checkin: checkInDate }]);
 
-      const updateHistoryQuery = `
+            const updateHistoryQuery = `
         UPDATE HISTORY 
         SET past_parking_spots = 
           CASE 
@@ -88,14 +112,32 @@ app.post('/check-in', (req, res) => {
           END
         WHERE user_id = ?
       `;
-      db.query(updateHistoryQuery, [newEntry, newEntry.slice(1), user_id], (historyErr) => {
+      
+      db.query(updateHistoryQuery, [newEntry, newEntry.slice(1), user_id], (historyErr, historyResults) => {
         if (historyErr) {
           res.status(500).json({ error: historyErr.message });
           return;
         }
-
-        // Respond with success
-        res.json({ message: 'Check-in successful', zone: zoneName });
+      
+        if (historyResults.affectedRows === 0) {
+          // If no rows were updated, insert a new record
+          const insertHistoryQuery = `
+            INSERT INTO HISTORY (user_id, past_parking_spots) 
+            VALUES (?, ?)
+          `;
+          db.query(insertHistoryQuery, [user_id, newEntry], (insertErr) => {
+            if (insertErr) {
+              res.status(500).json({ error: insertErr.message });
+              return;
+            }
+      
+            // Respond with success after inserting
+            res.json({ message: 'Check-in successful (new record created)', zone: zoneName });
+          });
+        } else {
+          // Respond with success if the update was successful
+          res.json({ message: 'Check-in successful', zone: zoneName });
+        }
       });
     });
   });
