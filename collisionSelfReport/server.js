@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3007;
+const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -74,7 +74,7 @@ await db.query(
 
 res.status(201).json({ message: 'Tu reporte ha sido recibido. Guardaremos el incidente.' });
 } catch (error) {
-console.error('❌  Error en el reporte:', error.message);
+console.error('Error en el reporte:', error.message);
 res.status(500).json({ error: 'Error al guardar el reporte' });
 }
 });
@@ -88,11 +88,11 @@ const [rows] = await db.query(
 );
 res.json(rows);
 } catch (error) {
-console.error('❌  Error obteniendo reportes:', error.message);
+console.error('Error obteniendo reportes:', error.message);
 res.status(500).json({ error: 'Error al obtener los reportes' });
 }
 });
 
 app.listen(PORT, () => {
-console.log(`🚧  Servicio de incidentes sin responsable activo en http://localhost:${PORT}`);
+console.log(`Servicio de incidentes sin responsable activo en http://localhost:${PORT}`);
 });
