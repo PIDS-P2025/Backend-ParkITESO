@@ -42,8 +42,7 @@ app.post('/check-in', (req, res) => {
     if (zoneErr) {
       res.status(500).json({ error: zoneErr.message });
       return;
-    }
-    Me;
+    };
 
     if (zoneResults.length === 0) {
       res.status(404).json({ message: 'No parking zone found for the given coordinates' });
